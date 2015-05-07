@@ -5,17 +5,33 @@ require 'druid/post_aggregation'
 
 require 'time'
 require 'json'
-
+#
+# Ruby Druid module
+#
 module Druid
+  #
+  # Query object to set the data to send to Druid.
+  #
   class Query
+    attr_reader :properties, :multiple
 
-    attr_reader :properties
-
+    #
+    # Init the client and source.
+    #
+    # == Parameters:
+    # source:
+    #   An String or Array with data sources. If source is an Array, we will
+    #   perform an Union query.
+    #   Show: http://druid.io/docs/latest/DataSource.html#union-data-source
+    # client:
+    #   A client object to perform the query.
+    #
     def initialize(source, client = nil)
       @properties = {}
       @client = client
+      @multiple = false
 
-      # set some defaults
+      # Init dats source and set some defaults
       data_source(source)
       granularity(:all)
 
@@ -26,6 +42,9 @@ module Druid
       Time.now.to_date.to_time
     end
 
+    #
+    # Send the current query to a client.
+    #
     def send
       @client.send(self)
     end
@@ -39,15 +58,33 @@ module Druid
       @properties[:queryType] || :groupBy
     end
 
+    #
+    # Receive and store a source. It can be an array and perform an union query
+    #
+    # == Parameters:
+    # source:
+    #   An String or Array of strings with data sources.
+    #   
+    # == Returns:
+    # self object
+    #
     def data_source(source)
-      source = source.split('/')
-      @properties[:dataSource] = source.last
-      @service = source.first
+      if source.is_a?(Array)
+        @properties[:dataSource] = {
+          type: 'union',
+          dataSources: source.map { |d| d.split('/').last }
+        }
+        @multiple = true
+      else
+        source = source.split('/')
+        @properties[:dataSource] = source.last
+        @multiple = false
+      end
       self
     end
 
     def source
-      "#{@service}/#{@properties[:dataSource]}"
+      "#{@properties[:dataSource]}"
     end
 
     def group_by(*dimensions)

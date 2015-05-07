@@ -3,127 +3,122 @@ require 'json'
 require 'rest_client'
 
 module Druid
-
+  #
+  # Class to connect Zookeeper and fetch all available brokers to perform
+  # queries.
+  #
   class ZooHandler
+    # Broker service name
+    BROKER_SERVICE = 'broker'
+    VERSION = 'v2'
+
     def initialize(uri, opts = {})
-      @zk = ZK.new uri, :chroot => :check
-      @registry = Hash.new {|hash,key| hash[key] = Array.new }
+      # Initialize vars
+      @zk = ZK.new uri, chroot: :check
       @discovery_path = opts[:discovery_path] || '/discoveryPath'
-      @watched_services = Hash.new
+      # Array of brokers
+      @brokers = []
+      # Watch brokers
+      @watcher = {}
 
       init_zookeeper
     end
 
+    #
+    # Connect to zookeeper and check if broker service is available.
+    # It adds a listener to reload services when zookeeper changes.
+    #
     def init_zookeeper
+      # Init when expired zookeeper session
       @zk.on_expired_session do
         init_zookeeper
       end
 
-      @zk.register(@discovery_path, :only => :child) do |event|
-        check_services
+      # Add a listener for discovery path on zookeeper
+      @zk.register(@discovery_path, only: :child) do |_|
+        check_brokers
       end
 
-      check_services
+      # Load brokers
+      check_brokers
     end
 
     def close!
       @zk.close!
     end
 
-    def check_services
-      zk_services = @zk.children @discovery_path, :watch => true
+    #
+    # Return the URI of a random available broker.
+    # Poor mans load balancing
+    # 
+    def broker
+      return nil if @brokers.size == 0
+      # Return a random broker from available brokers
+      i = Random.rand(@brokers.size)
+      @brokers[i][:uri]
+    end
 
-      #remove deprecated services
-      (services - zk_services).each do |old_service|
-        @registry.delete old_service
-        if @watched_services.include? old_service
-          @watched_services.delete(old_service).unregister
-        end
-      end
+    #
+    # Check available brokers
+    #
+    def check_brokers
+      # Get all services
+      zk_services = @zk.children @discovery_path, watch: true
 
-      zk_services.each do |service|
-        check_service service unless @watched_services.include? service
+      # Try to select broker or fail
+      if zk_services.include? BROKER_SERVICE
+        load_brokers
+      else
+        # There aren't any broker defined on the node!
+        fail 'There aren\'t any broker defined!'
       end
     end
 
-    def check_service(service)
-      unless @watched_services.include? service
-        watchPath = "#{@discovery_path}/#{service}"
-        @watched_services[service] = @zk.register(watchPath, :only => :child) do |event|
-          old_handler = @watched_services.delete(service)
-          if old_handler
-            old_handler.unregister
-          end
-          check_service service
+    #
+    # Load brokers from ZK and store them at @brokers
+    #
+    def load_brokers
+      return if @watcher.present?
+
+      # Add a watcher to reload brokers.
+      watch_path = "#{@discovery_path}/#{BROKER_SERVICE}"
+
+      @watcher =
+        @zk.register(watch_path, only: :child) do |_|
+          @watcher.unregister if @watcher
+          @watcher = nil
+          # Reload brokers
+          check_brokers
         end
 
-        known = @registry[service].map{ |node| node[:name] } rescue []
-        live = @zk.children(watchPath, :watch => true)
+      # Get @brokers cached and brokers from ZK
+      known = @brokers.map { |node| node[:name] } rescue []
+      live = @zk.children(watch_path, watch: true)
 
-        # copy the unchanged entries
-        new_list = @registry[service].select{ |node| live.include? node[:name] } rescue []
+      # copy the unchanged entries
+      new_list = @brokers.select { |node| live.include? node[:name] } rescue []
 
-        # verify the new entries to be living brokers
-        (live - known).each do |name|
-          info = @zk.get "#{watchPath}/#{name}"
-          node = JSON.parse(info[0])
-          uri =  "http://#{node['address']}:#{node['port']}/druid/v2/"
-
-          begin
-            check_uri = "#{uri}datasources/"
-
-            check = RestClient::Request.execute({
-              :method => :get,
-              :url => check_uri,
-              :timeout => 5,
-              :open_timeout => 5
-            })
-
-            if check.code == 200
-              new_list.push({
-                :name => name,
-                :uri => uri,
-                :data_sources => JSON.parse(check.to_str)
-              })
-            else
-            end
-          rescue
-          end
-        end
-
-        if !new_list.empty?
-          # poor mans load balancing
-          @registry[service] = new_list.shuffle
-        else
-          # don't show services w/o active brokers
-          @registry.delete service
-        end
-      end
-    end
-
-    def services
-      @registry.keys
-    end
-
-    def data_sources
-      result = Hash.new { |hash, key| hash[key] = [] }
-
-      @registry.each do |service, brokers|
-        brokers.each do |broker|
-          broker[:data_sources].each do |data_source|
-            result["#{service}/#{data_source}"] << broker[:uri]
-          end
-        end
-      end
-      result.each do |source, uris|
-        result[source] = uris.sample if uris.respond_to?(:sample)
+      # verify the new entries to be living brokers
+      (live - known).each do |name|
+        # Get the URI
+        info = @zk.get "#{watch_path}/#{name}"
+        node = JSON.parse(info[0])
+        uri =  "http://#{node['address']}:#{node['port']}/druid/#{VERSION}/"
+            
+        new_list.push(
+          name: name,
+          uri: uri
+        )
       end
 
-      result
+      @brokers = new_list
     end
 
+    #
+    # Only return current brokers.
+    #
     def to_s
-      @registry.to_s
+      @brokers.to_s
     end
   end
 end

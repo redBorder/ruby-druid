@@ -55,8 +55,17 @@ client = Druid::Client.new('zk1:2181,zk2:2181/druid', http_timeout: 20)
 ```
 
 Supported options are:
-* `static_setup` to explicitly specify a broker url, e.g. `static_setup: { 'my/source_name' => 'http://1.2.3.4:8080/druid/v2/' }`
-* `http_timeout` to define a timeout for sending http queries to a broker (in minutes, default value is 2)
+* `static_setup`: to explicitly specify a broker url, e.g. `static_setup: { 'my/source_name' => 'http://1.2.3.4:8080/druid/v2/' }`
+* `fallback`: `true` to use static_setup as backup connection
+* `http_timeout`: to define a timeout for sending http queries to a broker (in seconds, default value is 2)
+
+### Multiple datasources
+
+To perform an [Union](http://druid.io/docs/latest/DataSource.html#union-data-source) data source query, you can specify multiples data sources as Array of Strings:
+
+```ruby
+Druid::Query.new(['service/data_source_1', 'service/data_source_2']).group_by([:dimension1, :dimension2])
+```
 
 ### GroupBy
 
