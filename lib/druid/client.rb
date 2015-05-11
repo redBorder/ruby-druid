@@ -125,7 +125,7 @@ module Druid
       fail "DataSource #{source} (currently) not available" unless uri
 
       # Path to get the info
-      meta_path = "#{uri.path}datasources/#{source.split('/').last}"
+      meta_path = "#{uri.path}datasources/#{source}"
 
       req = Net::HTTP::Get.new(meta_path)
       response = Net::HTTP.new(uri.host, uri.port).start do |http|

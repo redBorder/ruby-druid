@@ -72,12 +72,11 @@ module Druid
       if source.is_a?(Array)
         @properties[:dataSource] = {
           type: 'union',
-          dataSources: source.map { |d| d.split('/').last }
+          dataSources: source.map { |d| d }
         }
         @multiple = true
       else
-        source = source.split('/')
-        @properties[:dataSource] = source.last
+        @properties[:dataSource] = source
         @multiple = false
       end
       self
