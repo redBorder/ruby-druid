@@ -59,6 +59,7 @@ module Druid
     def check_services
       $log.info("druid.zk checking services") if $log
       zk_services = @zk.children(@discovery_path, watch: true)
+      zk_services.select! { |service| service.include? 'broker' }
 
       (services - zk_services).each do |service|
         unregister_service(service)
