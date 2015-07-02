@@ -78,7 +78,7 @@ module Druid
     # Load brokers from ZK and store them at @brokers
     #
     def load_brokers
-      return if @watcher.present?
+      return unless @watcher.empty?
 
       # Add a watcher to reload brokers.
       watch_path = "#{@discovery_path}/#{BROKER_SERVICE}"
