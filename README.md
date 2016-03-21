@@ -10,6 +10,7 @@ testing is also provided.
 [![Build Status](https://travis-ci.org/liquidm/ruby-druid.png)](https://travis-ci.org/liquidm/ruby-druid)
 [![Code Climate](https://codeclimate.com/github/liquidm/ruby-druid.png)](https://codeclimate.com/github/liquidm/ruby-druid)
 [![Dependency Status](https://gemnasium.com/liquidm/ruby-druid.png)](https://gemnasium.com/liquidm/ruby-druid)
+[![Codacy Badge](https://api.codacy.com/project/badge/grade/6710e7b01a0b4416bd38688768a15cf5)](https://www.codacy.com/app/redBorder/ruby-druid)
 
 ## Installation
 
