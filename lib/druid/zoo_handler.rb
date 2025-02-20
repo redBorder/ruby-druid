@@ -9,7 +9,8 @@ module Druid
   #
   class ZooHandler
     # Broker service name
-    BROKER_SERVICE = 'broker'
+    OLD_BROKER_SERVICE = 'broker'
+    NEW_BROKER_SERVICE = 'druid:broker'
     VERSION = 'v2'
 
     def initialize(uri, opts = {})
@@ -65,11 +66,12 @@ module Druid
       # Get all services
       zk_services = @zk.children @discovery_path, watch: true
 
-      # Try to select broker or fail
-      if zk_services.include? BROKER_SERVICE
-        load_brokers
+      #  Try to select broker or fail
+      if zk_services.include?(NEW_BROKER_SERVICE)
+        load_brokers(NEW_BROKER_SERVICE)
+      elsif zk_services.include?(OLD_BROKER_SERVICE)
+        load_brokers(OLD_BROKER_SERVICE)
       else
-        # There aren't any broker defined on the node!
         fail 'There aren\'t any broker defined!'
       end
     end
@@ -77,11 +79,11 @@ module Druid
     #
     # Load brokers from ZK and store them at @brokers
     #
-    def load_brokers
+    def load_brokers(broker_service)
       return unless @watcher.empty?
 
       # Add a watcher to reload brokers.
-      watch_path = "#{@discovery_path}/#{BROKER_SERVICE}"
+      watch_path = "#{@discovery_path}/#{broker_service}"
 
       @watcher =
         @zk.register(watch_path, only: :child) do |_|
