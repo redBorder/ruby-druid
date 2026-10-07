@@ -242,8 +242,8 @@ module Druid
     end
 
     def mk_interval(from, to)
-      from = today + from if from.is_a?(Fixnum)
-      to = today + to if to.is_a?(Fixnum)
+      from = today + from if from.is_a?(Integer)
+      to = today + to if to.is_a?(Integer)
 
       from = DateTime.parse(from.to_s) unless from.respond_to? :iso8601
       to = DateTime.parse(to.to_s) unless to.respond_to? :iso8601
